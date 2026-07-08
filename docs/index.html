@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🐨 Koala Dashboard</title>
+<style>
+  :root {
+    --page:        #f9f9f7;
+    --surface:     #fcfcfb;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --muted:       #898781;
+    --grid:        #e1e0d9;
+    --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --equity:      #2a78d6;  /* series: wallet balance */
+    --price:       #1baf7a;  /* series: BTC price */
+    --good:        #006300;
+    --bad:         #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page:      #0d0d0d;
+      --surface:   #1a1a19;
+      --ink:       #ffffff;
+      --ink-2:     #c3c2b7;
+      --muted:     #898781;
+      --grid:      #2c2c2a;
+      --baseline:  #383835;
+      --border:    rgba(255,255,255,0.10);
+      --equity:    #3987e5;
+      --price:     #199e70;
+      --good:      #0ca30c;
+      --bad:       #d03b3b;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 16px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 8px 0 20px; }
+  h1 { font-size: 1.5rem; }
+  .sub { color: var(--ink-2); font-size: .9rem; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  /* Countdown */
+  #countdown-card { text-align: center; margin-bottom: 16px; }
+  #countdown-label { color: var(--ink-2); font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; }
+  #countdown {
+    font-size: clamp(2rem, 8vw, 3.5rem);
+    font-variant-numeric: tabular-nums;
+    margin: 6px 0 2px;
+  }
+  #countdown-units { color: var(--muted); font-size: .8rem; letter-spacing: .35em; }
+  #test-progress {
+    height: 6px; border-radius: 3px; background: var(--grid);
+    margin-top: 14px; overflow: hidden;
+  }
+  #test-progress > div { height: 100%; background: var(--equity); width: 0%; }
+
+  /* Stat tiles */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .tile .k { color: var(--ink-2); font-size: .8rem; }
+  .tile .v { font-size: 1.5rem; margin-top: 4px; }
+  .tile .d { font-size: .8rem; margin-top: 2px; color: var(--muted); }
+  .up   { color: var(--good); }
+  .down { color: var(--bad); }
+
+  /* Charts */
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
+  .chart-title { font-size: .95rem; margin-bottom: 8px; }
+  .chart-title .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; }
+  svg { width: 100%; height: auto; display: block; }
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; font-size: .8rem; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  th, td { text-align: left; padding: 7px 10px; white-space: nowrap; }
+  td { font-variant-numeric: tabular-nums; }
+  th { color: var(--ink-2); font-weight: 600; border-bottom: 1px solid var(--baseline); }
+  tr + tr td { border-top: 1px solid var(--grid); }
+  .pill { padding: 2px 8px; border-radius: 10px; font-size: .75rem; border: 1px solid var(--border); }
+
+  footer { color: var(--muted); font-size: .8rem; margin-top: 16px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐨 Koala</h1>
+  <span class="sub" id="meta-line">loading…</span>
+</header>
+
+<div class="card" id="countdown-card">
+  <div id="countdown-label">Paper test — time remaining</div>
+  <div id="countdown">--:--:--:--</div>
+  <div id="countdown-units">DD&nbsp;&nbsp;HH&nbsp;&nbsp;MM&nbsp;&nbsp;SS</div>
+  <div id="test-progress"><div></div></div>
+</div>
+
+<div class="tiles" id="tiles"></div>
+
+<div class="charts">
+  <div class="card">
+    <div class="chart-title"><span class="dot" style="background:var(--equity)"></span>Wallet balance (USD)</div>
+    <div id="equity-chart"></div>
+  </div>
+  <div class="card">
+    <div class="chart-title"><span class="dot" style="background:var(--price)"></span>BTC price (USD)</div>
+    <div id="price-chart"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="chart-title">Recent runs</div>
+  <div class="table-wrap"><table id="runs-table">
+    <thead><tr><th>Time (UTC)</th><th>Decision</th><th>BTC price</th><th>Wallet</th><th>Position</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<footer id="footer"></footer>
+
+<script>
+"use strict";
+
+const fmtUsd = n => "$" + n.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const fmtTs = iso => iso.replace("T", " ").slice(0, 16);
+
+function startCountdown(endIso, startIso) {
+  const end = new Date(endIso).getTime();
+  const start = new Date(startIso).getTime();
+  const el = document.getElementById("countdown");
+  const bar = document.querySelector("#test-progress > div");
+  function tick() {
+    const now = Date.now();
+    const left = Math.max(end - now, 0);
+    const s = Math.floor(left / 1000);
+    const dd = Math.floor(s / 86400), hh = Math.floor(s % 86400 / 3600),
+          mm = Math.floor(s % 3600 / 60), ss = s % 60;
+    el.textContent = [dd, hh, mm, ss].map(x => String(x).padStart(2, "0")).join(":");
+    bar.style.width = Math.min((now - start) / (end - start) * 100, 100) + "%";
+    if (left === 0) {
+      document.getElementById("countdown-label").textContent = "Paper test complete — time to review!";
+      return;
+    }
+    setTimeout(tick, 1000);
+  }
+  tick();
+}
+
+function tile(label, value, delta, deltaClass) {
+  return `<div class="card tile"><div class="k">${label}</div><div class="v">${value}</div>` +
+         (delta ? `<div class="d ${deltaClass || ""}">${delta}</div>` : "") + `</div>`;
+}
+
+/* Minimal single-series line chart: SVG path + gridlines + crosshair tooltip. */
+function lineChart(mount, points, colorVar, fmtVal) {
+  const W = 520, H = 240, m = {t: 12, r: 12, b: 24, l: 56};
+  const xs = points.map(p => new Date(p.ts).getTime());
+  const ys = points.map(p => p.v);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (y0 === y1) { y0 -= 1; y1 += 1; }            // flat line: give it a band
+  const pad = (y1 - y0) * 0.12; y0 -= pad; y1 += pad;
+  const X = t => x1 === x0 ? (m.l + (W - m.l - m.r) / 2) : m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+
+  let grid = "", labels = "";
+  for (let i = 0; i <= 3; i++) {
+    const v = y0 + (y1 - y0) * i / 3, y = Y(v);
+    grid += `<line x1="${m.l}" y1="${y}" x2="${W - m.r}" y2="${y}" stroke="var(--grid)" stroke-width="1"/>`;
+    labels += `<text x="${m.l - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="var(--muted)">${fmtVal(v, true)}</text>`;
+  }
+  const d = points.map((p, i) => (i ? "L" : "M") + X(xs[i]).toFixed(1) + " " + Y(ys[i]).toFixed(1)).join(" ");
+  const dots = points.length <= 60
+    ? points.map((p, i) => `<circle cx="${X(xs[i])}" cy="${Y(ys[i])}" r="3" fill="var(${colorVar})"/>`).join("")
+    : "";
+
+  const el = document.getElementById(mount);
+  el.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" role="img">
+      ${grid}${labels}
+      <line x1="${m.l}" y1="${H - m.b}" x2="${W - m.r}" y2="${H - m.b}" stroke="var(--baseline)" stroke-width="1"/>
+      <path d="${d}" fill="none" stroke="var(${colorVar})" stroke-width="2" stroke-linejoin="round"/>
+      ${dots}
+      <line id="${mount}-x" y1="${m.t}" y2="${H - m.b}" stroke="var(--baseline)" stroke-width="1" visibility="hidden"/>
+    </svg>`;
+
+  const svg = el.firstElementChild;
+  const cross = document.getElementById(mount + "-x");
+  const tip = document.getElementById("tooltip");
+  svg.addEventListener("pointermove", ev => {
+    const rect = svg.getBoundingClientRect();
+    const px = (ev.clientX - rect.left) / rect.width * W;
+    let best = 0, bestD = Infinity;
+    points.forEach((p, i) => {
+      const dd = Math.abs(X(xs[i]) - px);
+      if (dd < bestD) { bestD = dd; best = i; }
+    });
+    cross.setAttribute("x1", X(xs[best])); cross.setAttribute("x2", X(xs[best]));
+    cross.setAttribute("visibility", "visible");
+    tip.style.display = "block";
+    tip.style.left = Math.min(ev.clientX + 14, innerWidth - 170) + "px";
+    tip.style.top = (ev.clientY + 14) + "px";
+    tip.innerHTML = `${fmtTs(points[best].ts)} UTC<br><b>${fmtVal(ys[best], false)}</b>`;
+  });
+  svg.addEventListener("pointerleave", () => {
+    cross.setAttribute("visibility", "hidden");
+    tip.style.display = "none";
+  });
+}
+
+async function main() {
+  const data = await (await fetch("data.json", {cache: "no-store"})).json();
+  const meta = data.meta, hist = data.history, trades = data.trades;
+  const last = hist[hist.length - 1];
+  const ret = (last.balance / meta.starting_balance - 1) * 100;
+  const retClass = ret > 0 ? "up" : ret < 0 ? "down" : "";
+
+  document.getElementById("meta-line").textContent =
+    `${meta.symbol} · ${meta.timeframe} · ${meta.strategy} · ${meta.mode} money`;
+
+  startCountdown(meta.test_end, meta.test_start);
+
+  document.getElementById("tiles").innerHTML =
+    tile("Wallet", fmtUsd(last.balance),
+         (ret >= 0 ? "+" : "") + ret.toFixed(2) + "% vs start", retClass) +
+    tile("BTC price", fmtUsd(last.price), "at last run") +
+    tile("Position", last.holding ? "Holding BTC" : "In cash",
+         "decision: " + last.action.toUpperCase()) +
+    tile("Runs", hist.length, "checks so far") +
+    tile("Trades", trades.length, "buy/sell events");
+
+  const fmtMoney = (v, short) => short && v >= 10000 ? "$" + (v / 1000).toFixed(1) + "k" : fmtUsd(v);
+  lineChart("equity-chart", hist.map(h => ({ts: h.ts, v: h.balance})), "--equity", fmtMoney);
+  lineChart("price-chart", hist.map(h => ({ts: h.ts, v: h.price})), "--price", fmtMoney);
+
+  document.querySelector("#runs-table tbody").innerHTML =
+    hist.slice(-20).reverse().map(h => `<tr>
+      <td>${fmtTs(h.ts)}</td>
+      <td><span class="pill">${h.action.toUpperCase()}</span></td>
+      <td>${fmtUsd(h.price)}</td>
+      <td>${fmtUsd(h.balance)}</td>
+      <td>${h.holding ? "BTC" : "cash"}</td>
+    </tr>`).join("");
+
+  document.getElementById("footer").textContent =
+    `Last updated ${fmtTs(meta.updated)} UTC · Koala checks every 4 hours · paper money only`;
+}
+main().catch(err => {
+  document.getElementById("meta-line").textContent = "Could not load data.json — " + err;
+});
+</script>
+</body>
+</html>

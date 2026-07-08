@@ -1,0 +1,12 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Secrets - API tokens live here and must NEVER reach GitHub
+.env
+
+# Koala runtime state - regenerated as it trades, not source code
+paper_wallet.json
+trades.log
+koala_runs.log
