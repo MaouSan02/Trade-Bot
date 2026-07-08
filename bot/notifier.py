@@ -41,5 +41,5 @@ def notify_trade(side: str, price: float, wallet_value: float) -> bool:
     return send(
         f"{emoji} Koala {side.upper()} BTC @ ${price:,.2f}\n"
         f"Wallet: ${wallet_value:,.2f} (paper)\n"
-        f"Test ends in {config.time_left_in_test()} (dd:hh:mm:ss)"
+        f"Test ends in {config.time_left_in_test()}"
     )

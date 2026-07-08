@@ -10,3 +10,4 @@ __pycache__/
 paper_wallet.json
 trades.log
 koala_runs.log
+listener.log

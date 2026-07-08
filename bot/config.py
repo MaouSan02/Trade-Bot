@@ -34,11 +34,11 @@ def load_env() -> dict:
 
 
 def time_left_in_test() -> str:
-    """Countdown to the end of the paper test, as 'dd:hh:mm:ss'."""
+    """Countdown to the end of the paper test, as 'dd:hh:mm'."""
     end = datetime.fromisoformat(TEST_END_UTC.replace("Z", "+00:00"))
     remaining = end - datetime.now(timezone.utc)
     total = max(int(remaining.total_seconds()), 0)
     days, rest = divmod(total, 86400)
     hours, rest = divmod(rest, 3600)
-    minutes, seconds = divmod(rest, 60)
-    return f"{days:02d}:{hours:02d}:{minutes:02d}:{seconds:02d}"
+    minutes = rest // 60
+    return f"{days:02d}:{hours:02d}:{minutes:02d}"
