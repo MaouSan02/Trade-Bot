@@ -35,11 +35,12 @@ def send(message: str) -> bool:
     return True
 
 
-def notify_trade(side: str, price: float, wallet_value: float) -> bool:
+def notify_trade(side: str, symbol: str, price: float, wallet_value: float) -> bool:
     """Push a trade alert including the paper-test countdown."""
     emoji = "🟢" if side == "buy" else "🔴"
+    coin = symbol.split("/")[0]
     return send(
-        f"{emoji} Koala {side.upper()} BTC @ ${price:,.2f}\n"
-        f"Wallet: ${wallet_value:,.2f} (paper)\n"
+        f"{emoji} Koala {side.upper()} {coin} @ ${price:,.4f}\n"
+        f"Total wallet: ${wallet_value:,.2f} (paper)\n"
         f"Test ends in {config.time_left_in_test()}"
     )

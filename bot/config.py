@@ -16,6 +16,15 @@ ENV_FILE = PROJECT_DIR / ".env"
 TEST_START_UTC = "2026-07-08T13:00:00Z"
 TEST_END_UTC = "2026-07-22T13:00:00Z"  # 14-day paper test
 
+# The coins Koala trades, each with an equal share of the paper wallet.
+# Chosen by the 2026-07-08 coin-selection sweep (EXP-019/020 + EXP-006).
+SYMBOLS = ["BTC/USDT", "ETH/USDT", "DOGE/USDT"]
+EXPERIMENT_BY_SYMBOL = {
+    "BTC/USDT": "EXP-006: SMA 50/200, BTC 4h",
+    "ETH/USDT": "EXP-020: SMA 50/200, ETH 4h",
+    "DOGE/USDT": "EXP-019: SMA 50/200, DOGE 4h",
+}
+
 # Notion database IDs (the Koala HQ trackers).
 NOTION_RUN_JOURNAL_DB = "15d828d4bfa5491c90f6f338494079dc"
 NOTION_TRADE_LOG_DB = "bc7684f28dc5492fa10be91b76779532"

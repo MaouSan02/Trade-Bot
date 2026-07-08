@@ -17,7 +17,7 @@ from pathlib import Path
 import requests
 
 from bot import config, data
-from bot.paper_trader import SYMBOL, load_wallet
+from bot.paper_trader import load_wallet
 
 LOG_FILE = config.PROJECT_DIR / "listener.log"
 COMMANDS = ("/update", "update")
@@ -31,25 +31,31 @@ def log(message: str) -> None:
 
 def build_update() -> str:
     wallet = load_wallet()
-    price = data.fetch_current_price(SYMBOL)
-    total = wallet["cash"] + wallet["coins"] * price
-    position = "Holding BTC" if wallet["coins"] > 0 else "In cash"
+    total = 0.0
+    coin_lines = []
+    for symbol in config.SYMBOLS:
+        sleeve = wallet[symbol]
+        price = data.fetch_current_price(symbol)
+        value = sleeve["cash"] + sleeve["coins"] * price
+        total += value
+        coin = symbol.split("/")[0]
+        position = "holding" if sleeve["coins"] > 0 else "in cash"
+        coin_lines.append(f"{coin}: ${value:,.2f} ({position}) · price ${price:,.4f}")
 
     last_line = ""
     data_file = config.PROJECT_DIR / "docs" / "data.json"
     if data_file.exists():
         history = json.loads(data_file.read_text())["history"]
         if history:
-            last = history[-1]
-            when = last["ts"][:16].replace("T", " ")  # trimmed to minutes
-            last_line = f"Last run: {when} UTC — {last['action'].upper()}\n"
+            when = history[-1]["ts"][:16].replace("T", " ")  # trimmed to minutes
+            last_line = f"Last run: {when} UTC\n"
 
     return (
         f"🐨 Koala update\n"
-        f"Wallet: ${total:,.2f} (paper) — {position}\n"
-        f"BTC price: ${price:,.2f}\n"
-        f"{last_line}"
-        f"Test ends in {config.time_left_in_test()}"
+        f"Total wallet: ${total:,.2f} (paper)\n"
+        + "\n".join(coin_lines) + "\n"
+        + last_line
+        + f"Test ends in {config.time_left_in_test()}"
     )
 
 

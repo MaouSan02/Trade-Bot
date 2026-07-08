@@ -42,35 +42,39 @@ def _create_page(database_id: str, properties: dict) -> bool:
     return True
 
 
-def log_run(decision: str, price: float, balance: float, holding: bool,
-            notes: str = "") -> bool:
+def log_run(symbol: str, decision: str, price: float, total_balance: float,
+            holding: bool, notes: str = "") -> bool:
     """Add a row to the Run Journal. Returns True if actually sent."""
     now = datetime.now(timezone.utc)
+    coin = symbol.split("/")[0]
     return _create_page(config.NOTION_RUN_JOURNAL_DB, {
-        "Run": {"title": [{"text": {"content": f"Auto run {now:%Y-%m-%d %H:%M} UTC"}}]},
+        "Run": {"title": [{"text": {"content": f"Auto run {coin} {now:%Y-%m-%d %H:%M} UTC"}}]},
         "Date": {"date": {"start": now.isoformat()}},
+        "Pair": {"select": {"name": symbol}},
         "Decision": {"select": {"name": decision.capitalize()}},
-        "BTC Price": {"number": round(price, 2)},
-        "Balance": {"number": round(balance, 2)},
+        "Price": {"number": round(price, 6)},
+        "Balance": {"number": round(total_balance, 2)},
         "Holding?": {"checkbox": holding},
         "Notes": {"rich_text": [{"text": {"content": notes[:1900]}}]} if notes else {"rich_text": []},
     })
 
 
-def log_trade(side: str, price: float, size: float, value: float,
+def log_trade(symbol: str, side: str, price: float, size: float, value: float,
               pnl: float | None = None) -> bool:
     """Add a row to the Trade Log. Returns True if actually sent."""
     now = datetime.now(timezone.utc)
+    coin = symbol.split("/")[0]
+    experiment = config.EXPERIMENT_BY_SYMBOL.get(symbol, "")
     properties = {
-        "Trade": {"title": [{"text": {"content": f"{side.upper()} BTC {now:%Y-%m-%d %H:%M} UTC"}}]},
+        "Trade": {"title": [{"text": {"content": f"{side.upper()} {coin} {now:%Y-%m-%d %H:%M} UTC"}}]},
         "Date": {"date": {"start": now.isoformat()}},
         "Side": {"select": {"name": side.capitalize()}},
-        "Pair": {"select": {"name": "BTC/USDT"}},
-        "Price": {"number": round(price, 2)},
+        "Pair": {"select": {"name": symbol}},
+        "Price": {"number": round(price, 6)},
         "Size": {"number": round(size, 8)},
         "Value": {"number": round(value, 2)},
         "Mode": {"select": {"name": "Paper"}},
-        "Experiment": {"rich_text": [{"text": {"content": "EXP-006: SMA 50/200, BTC 4h"}}]},
+        "Experiment": {"rich_text": [{"text": {"content": experiment}}]},
     }
     if pnl is not None:
         properties["P&L"] = {"number": round(pnl, 2)}

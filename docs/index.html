@@ -14,8 +14,10 @@
     --grid:        #e1e0d9;
     --baseline:    #c3c2b7;
     --border:      rgba(11,11,11,0.10);
-    --equity:      #2a78d6;  /* series: wallet balance */
-    --price:       #1baf7a;  /* series: BTC price */
+    --equity:      #2a78d6;  /* total wallet series */
+    --c-btc:       #2a78d6;  /* categorical slot 1 */
+    --c-eth:       #1baf7a;  /* categorical slot 2 */
+    --c-doge:      #eda100;  /* categorical slot 3 */
     --good:        #006300;
     --bad:         #d03b3b;
   }
@@ -30,7 +32,9 @@
       --baseline:  #383835;
       --border:    rgba(255,255,255,0.10);
       --equity:    #3987e5;
-      --price:     #199e70;
+      --c-btc:     #3987e5;
+      --c-eth:     #199e70;
+      --c-doge:    #c98500;
       --good:      #0ca30c;
       --bad:       #d03b3b;
     }
@@ -73,19 +77,21 @@
   /* Stat tiles */
   .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 12px;
     margin-bottom: 16px;
   }
   .tile .k { color: var(--ink-2); font-size: .8rem; }
-  .tile .v { font-size: 1.5rem; margin-top: 4px; }
+  .tile .v { font-size: 1.35rem; margin-top: 4px; }
   .tile .d { font-size: .8rem; margin-top: 2px; color: var(--muted); }
+  .tile .k .dot { width: 8px; height: 8px; border-radius: 4px; display: inline-block; margin-right: 5px; }
   .up   { color: var(--good); }
   .down { color: var(--bad); }
 
   /* Charts */
-  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-  @media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
+  .chart-card { margin-bottom: 16px; }
+  .coin-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .coin-charts { grid-template-columns: 1fr; } }
   .chart-title { font-size: .95rem; margin-bottom: 8px; }
   .chart-title .dot { display: inline-block; width: 10px; height: 10px; border-radius: 5px; margin-right: 6px; }
   svg { width: 100%; height: auto; display: block; }
@@ -104,6 +110,8 @@
   th { color: var(--ink-2); font-weight: 600; border-bottom: 1px solid var(--baseline); }
   tr + tr td { border-top: 1px solid var(--grid); }
   .pill { padding: 2px 8px; border-radius: 10px; font-size: .75rem; border: 1px solid var(--border); }
+  .pill.buy  { color: var(--good); border-color: var(--good); }
+  .pill.sell { color: var(--bad); border-color: var(--bad); }
 
   footer { color: var(--muted); font-size: .8rem; margin-top: 16px; text-align: center; }
 </style>
@@ -123,21 +131,17 @@
 
 <div class="tiles" id="tiles"></div>
 
-<div class="charts">
-  <div class="card">
-    <div class="chart-title"><span class="dot" style="background:var(--equity)"></span>Wallet balance (USD)</div>
-    <div id="equity-chart"></div>
-  </div>
-  <div class="card">
-    <div class="chart-title"><span class="dot" style="background:var(--price)"></span>BTC price (USD)</div>
-    <div id="price-chart"></div>
-  </div>
+<div class="card chart-card">
+  <div class="chart-title"><span class="dot" style="background:var(--equity)"></span>Total wallet (USD)</div>
+  <div id="equity-chart"></div>
 </div>
+
+<div class="coin-charts" id="coin-charts"></div>
 
 <div class="card">
   <div class="chart-title">Recent runs</div>
   <div class="table-wrap"><table id="runs-table">
-    <thead><tr><th>Time (UTC)</th><th>Decision</th><th>BTC price</th><th>Wallet</th><th>Position</th></tr></thead>
+    <thead></thead>
     <tbody></tbody>
   </table></div>
 </div>
@@ -148,7 +152,12 @@
 <script>
 "use strict";
 
-const fmtUsd = n => "$" + n.toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const COIN_COLORS = { "BTC/USDT": "--c-btc", "ETH/USDT": "--c-eth", "DOGE/USDT": "--c-doge" };
+const short = sym => sym.split("/")[0];
+const fmtUsd = (n, dp) => "$" + n.toLocaleString("en-US",
+  {minimumFractionDigits: dp ?? 2, maximumFractionDigits: dp ?? 2});
+// DOGE trades at fractions of a dollar; give small prices more decimals.
+const fmtPrice = n => fmtUsd(n, n < 10 ? 4 : 2);
 const fmtTs = iso => iso.replace("T", " ").slice(0, 16);
 
 function startCountdown(endIso, startIso) {
@@ -180,7 +189,7 @@ function tile(label, value, delta, deltaClass) {
 
 /* Minimal single-series line chart: SVG path + gridlines + crosshair tooltip. */
 function lineChart(mount, points, colorVar, fmtVal) {
-  const W = 520, H = 240, m = {t: 12, r: 12, b: 24, l: 56};
+  const W = 520, H = 240, m = {t: 12, r: 12, b: 24, l: 60};
   const xs = points.map(p => new Date(p.ts).getTime());
   const ys = points.map(p => p.v);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
@@ -238,35 +247,59 @@ function lineChart(mount, points, colorVar, fmtVal) {
 async function main() {
   const data = await (await fetch("data.json", {cache: "no-store"})).json();
   const meta = data.meta, hist = data.history, trades = data.trades;
+  const symbols = meta.symbols || [meta.symbol];
   const last = hist[hist.length - 1];
-  const ret = (last.balance / meta.starting_balance - 1) * 100;
+  const total = last.total ?? last.balance;
+  const ret = (total / meta.starting_balance - 1) * 100;
   const retClass = ret > 0 ? "up" : ret < 0 ? "down" : "";
 
   document.getElementById("meta-line").textContent =
-    `${meta.symbol} · ${meta.timeframe} · ${meta.strategy} · ${meta.mode} money`;
+    `${symbols.map(short).join(" · ")} · ${meta.timeframe} · ${meta.strategy} · ${meta.mode} money`;
 
   startCountdown(meta.test_end, meta.test_start);
 
-  document.getElementById("tiles").innerHTML =
-    tile("Wallet", fmtUsd(last.balance),
+  let tiles =
+    tile("Total wallet", fmtUsd(total),
          (ret >= 0 ? "+" : "") + ret.toFixed(2) + "% vs start", retClass) +
-    tile("BTC price", fmtUsd(last.price), "at last run") +
-    tile("Position", last.holding ? "Holding BTC" : "In cash",
-         "decision: " + last.action.toUpperCase()) +
     tile("Runs", hist.length, "checks so far") +
     tile("Trades", trades.length, "buy/sell events");
+  for (const sym of symbols) {
+    const c = last.coins && last.coins[sym];
+    if (!c) continue;
+    tiles += tile(
+      `<span class="dot" style="background:var(${COIN_COLORS[sym] || "--equity"})"></span>${short(sym)}`,
+      fmtUsd(c.balance),
+      (c.holding ? "holding" : "in cash") + " · " + fmtPrice(c.price));
+  }
+  document.getElementById("tiles").innerHTML = tiles;
 
-  const fmtMoney = (v, short) => short && v >= 10000 ? "$" + (v / 1000).toFixed(1) + "k" : fmtUsd(v);
-  lineChart("equity-chart", hist.map(h => ({ts: h.ts, v: h.balance})), "--equity", fmtMoney);
-  lineChart("price-chart", hist.map(h => ({ts: h.ts, v: h.price})), "--price", fmtMoney);
+  const fmtMoney = (v, axis) => axis && v >= 10000 ? "$" + (v / 1000).toFixed(1) + "k" : fmtUsd(v);
+  const fmtP = (v) => fmtPrice(v);
+  lineChart("equity-chart",
+            hist.map(h => ({ts: h.ts, v: h.total ?? h.balance})), "--equity", fmtMoney);
 
+  const chartsEl = document.getElementById("coin-charts");
+  chartsEl.innerHTML = symbols.map(sym => `
+    <div class="card">
+      <div class="chart-title"><span class="dot" style="background:var(${COIN_COLORS[sym] || "--equity"})"></span>${short(sym)} price (USD)</div>
+      <div id="chart-${short(sym)}"></div>
+    </div>`).join("");
+  for (const sym of symbols) {
+    const pts = hist.filter(h => h.coins && h.coins[sym])
+                    .map(h => ({ts: h.ts, v: h.coins[sym].price}));
+    if (pts.length) lineChart("chart-" + short(sym), pts, COIN_COLORS[sym] || "--equity", fmtP);
+  }
+
+  document.querySelector("#runs-table thead").innerHTML =
+    `<tr><th>Time (UTC)</th>${symbols.map(s => `<th>${short(s)}</th>`).join("")}<th>Total</th></tr>`;
   document.querySelector("#runs-table tbody").innerHTML =
     hist.slice(-20).reverse().map(h => `<tr>
       <td>${fmtTs(h.ts)}</td>
-      <td><span class="pill">${h.action.toUpperCase()}</span></td>
-      <td>${fmtUsd(h.price)}</td>
-      <td>${fmtUsd(h.balance)}</td>
-      <td>${h.holding ? "BTC" : "cash"}</td>
+      ${symbols.map(sym => {
+        const c = h.coins && h.coins[sym];
+        return `<td>` + (c ? `<span class="pill ${c.action}">${c.action.toUpperCase()}</span> ${fmtPrice(c.price)}` : "—") + `</td>`;
+      }).join("")}
+      <td>${fmtUsd(h.total ?? h.balance)}</td>
     </tr>`).join("");
 
   document.getElementById("footer").textContent =
