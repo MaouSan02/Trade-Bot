@@ -1,0 +1,4 @@
+# Shell scripts must stay LF or Termux/Linux can't execute them;
+# batch files must stay CRLF for cmd.exe.
+*.sh  text eol=lf
+*.bat text eol=crlf
