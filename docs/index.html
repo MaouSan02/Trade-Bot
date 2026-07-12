@@ -52,6 +52,18 @@
   h1 { font-size: 1.5rem; }
   .sub { color: var(--ink-2); font-size: .9rem; }
 
+  /* Bot online/offline status */
+  #status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 12px; font-size: .8rem;
+    border: 1px solid var(--border); margin-left: auto;
+  }
+  #status .led { width: 8px; height: 8px; border-radius: 4px; background: var(--muted); }
+  #status.online  { color: var(--good); }
+  #status.online .led  { background: var(--good); }
+  #status.offline { color: var(--bad); }
+  #status.offline .led { background: var(--bad); }
+
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -120,6 +132,7 @@
 <header>
   <h1>🐨 Koala</h1>
   <span class="sub" id="meta-line">loading…</span>
+  <span id="status"><span class="led"></span><span id="status-text">checking…</span></span>
 </header>
 
 <div class="card" id="countdown-card">
@@ -159,6 +172,35 @@ const fmtUsd = (n, dp) => "$" + n.toLocaleString("en-US",
 // DOGE trades at fractions of a dollar; give small prices more decimals.
 const fmtPrice = n => fmtUsd(n, n < 10 ? 4 : 2);
 const fmtTs = iso => iso.replace("T", " ").slice(0, 16);
+
+function ago(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + "m ago";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + "h " + (m % 60) + "m ago";
+  return Math.floor(h / 24) + "d " + (h % 24) + "h ago";
+}
+
+function showStatus(updatedIso) {
+  // Koala pushes fresh data every 4h run, so a recent update means the
+  // machine is up. One cycle + 20min grace = the "online" window.
+  const WINDOW_MS = (4 * 60 + 20) * 60 * 1000;
+  const el = document.getElementById("status");
+  const text = document.getElementById("status-text");
+  function refresh() {
+    const sinceMs = Date.now() - new Date(updatedIso).getTime();
+    if (sinceMs <= WINDOW_MS) {
+      el.className = "online";
+      text.textContent = "Online · last check-in " + ago(sinceMs);
+    } else {
+      el.className = "offline";
+      text.textContent = "Offline · last online " + fmtTs(updatedIso) + " UTC (" + ago(sinceMs) + ")";
+    }
+    setTimeout(refresh, 60000);
+  }
+  refresh();
+}
 
 function startCountdown(endIso, startIso) {
   const end = new Date(endIso).getTime();
@@ -257,6 +299,7 @@ async function main() {
     `${symbols.map(short).join(" · ")} · ${meta.timeframe} · ${meta.strategy} · ${meta.mode} money`;
 
   startCountdown(meta.test_end, meta.test_start);
+  showStatus(meta.updated);
 
   let tiles =
     tile("Total wallet", fmtUsd(total),
