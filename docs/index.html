@@ -57,7 +57,10 @@
     display: inline-flex; align-items: center; gap: 6px;
     padding: 3px 10px; border-radius: 12px; font-size: .8rem;
     border: 1px solid var(--border); margin-left: auto;
+    cursor: pointer; user-select: none;
   }
+  #status:hover { border-color: var(--muted); }
+  #status a { color: inherit; }
   #status .led { width: 8px; height: 8px; border-radius: 4px; background: var(--muted); }
   #status.online  { color: var(--good); }
   #status.online .led  { background: var(--good); }
@@ -172,6 +175,14 @@ const fmtUsd = (n, dp) => "$" + n.toLocaleString("en-US",
 // DOGE trades at fractions of a dollar; give small prices more decimals.
 const fmtPrice = n => fmtUsd(n, n < 10 ? 4 : 2);
 const fmtTs = iso => iso.replace("T", " ").slice(0, 16);
+// Same instant shown in Africa/Lagos time (WAT, UTC+1) as "YYYY-MM-DD HH:MM".
+const fmtWat = iso => {
+  const p = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date(iso)).reduce((o, x) => (o[x.type] = x.value, o), {});
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+};
 
 function ago(ms) {
   const m = Math.floor(ms / 60000);
@@ -188,18 +199,34 @@ function showStatus(updatedIso) {
   const WINDOW_MS = (4 * 60 + 20) * 60 * 1000;
   const el = document.getElementById("status");
   const text = document.getElementById("status-text");
-  function refresh() {
+  el.title = "Click to re-check now";
+
+  function render() {
     const sinceMs = Date.now() - new Date(updatedIso).getTime();
     if (sinceMs <= WINDOW_MS) {
       el.className = "online";
       text.textContent = "Online · last check-in " + ago(sinceMs);
     } else {
       el.className = "offline";
-      text.textContent = "Offline · last online " + fmtTs(updatedIso) + " UTC (" + ago(sinceMs) + ")";
+      text.innerHTML = "Offline · last online " + fmtWat(updatedIso) + " WAT (" + ago(sinceMs) + ")" +
+        ' · <a href="https://t.me/koala_update_bot" target="_blank" rel="noopener"' +
+        ' onclick="event.stopPropagation()">ping via Telegram</a>';
     }
-    setTimeout(refresh, 60000);
   }
-  refresh();
+
+  // Click = re-fetch the data feed and re-evaluate. A fresh timestamp means
+  // Koala checked in while this page was sitting open.
+  el.addEventListener("click", async () => {
+    text.textContent = "re-checking…";
+    el.className = "";
+    try {
+      const fresh = await (await fetch("data.json", {cache: "no-store"})).json();
+      updatedIso = fresh.meta.updated;
+    } catch (e) { /* keep last known timestamp */ }
+    render();
+  });
+
+  (function tick() { render(); setTimeout(tick, 60000); })();
 }
 
 function startCountdown(endIso, startIso) {

@@ -10,6 +10,7 @@ messages coming from the chat ID in .env.
 """
 
 import json
+import socket
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,6 +61,15 @@ def build_update() -> str:
 
 
 def run() -> None:
+    # Single-instance lock: two listeners fight over Telegram's getUpdates
+    # and both go deaf. Holding a local port is a lock that dies with us.
+    lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        lock.bind(("127.0.0.1", 47321))
+    except OSError:
+        log("Another listener instance is already running - exiting.")
+        return
+
     env = config.load_env()
     token = env.get("TELEGRAM_BOT_TOKEN")
     chat_id = env.get("TELEGRAM_CHAT_ID")
