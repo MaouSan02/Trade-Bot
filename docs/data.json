@@ -12,7 +12,7 @@
   "starting_balance": 1000.0,
   "test_start": "2026-07-08T13:00:00Z",
   "test_end": "2026-07-22T13:00:00Z",
-  "updated": "2026-07-31T17:58:08+00:00"
+  "updated": "2026-08-01T12:24:21+00:00"
  },
  "history": [
   {
@@ -1126,6 +1126,30 @@
     },
     "DOGE/USDT": {
      "price": 0.0702,
+     "balance": 333.33,
+     "action": "hold",
+     "holding": false
+    }
+   }
+  },
+  {
+   "ts": "2026-08-01T12:24:21+00:00",
+   "total": 1022.33,
+   "coins": {
+    "BTC/USDT": {
+     "price": 63103.16,
+     "balance": 327.21,
+     "action": "hold",
+     "holding": true
+    },
+    "ETH/USDT": {
+     "price": 1867.85,
+     "balance": 361.79,
+     "action": "hold",
+     "holding": true
+    },
+    "DOGE/USDT": {
+     "price": 0.06989,
      "balance": 333.33,
      "action": "hold",
      "holding": false
